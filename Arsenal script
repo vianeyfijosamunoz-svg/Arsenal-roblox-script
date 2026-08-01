@@ -1,0 +1,91 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local Enabled = false
+local FOV = 150
+
+-- UI
+local Gui = Instance.new("ScreenGui")
+Gui.ResetOnSpawn = false
+Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Toggle = Instance.new("TextButton")
+Toggle.Size = UDim2.new(0,120,0,40)
+Toggle.Position = UDim2.new(0,20,0,20)
+Toggle.Text = "Aim Assist: OFF"
+Toggle.Parent = Gui
+
+Toggle.MouseButton1Click:Connect(function()
+	Enabled = not Enabled
+	Toggle.Text = Enabled and "Aim Assist: ON" or "Aim Assist: OFF"
+end)
+
+-- Círculo de FOV
+local Circle = Instance.new("Frame")
+Circle.Size = UDim2.fromOffset(FOV * 2, FOV * 2)
+Circle.AnchorPoint = Vector2.new(0.5,0.5)
+Circle.Position = UDim2.fromScale(0.5,0.5)
+Circle.BackgroundTransparency = 1
+Circle.Parent = Gui
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Thickness = 2
+Stroke.Parent = Circle
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(1,0)
+Corner.Parent = Circle
+
+local function Visible(part)
+	local origin = Camera.CFrame.Position
+	local direction = part.Position - origin
+
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Blacklist
+	params.FilterDescendantsInstances = {LocalPlayer.Character}
+
+	local result = workspace:Raycast(origin, direction, params)
+
+	return (not result) or result.Instance:IsDescendantOf(part.Parent)
+end
+
+local function GetTarget()
+	local closest
+	local dist = FOV
+
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr ~= LocalPlayer and plr.Character then
+			local torso = plr.Character:FindFirstChild("UpperTorso")
+			local hum = plr.Character:FindFirstChild("Humanoid")
+
+			if torso and hum and hum.Health > 0 then
+				local pos, visible = Camera:WorldToViewportPoint(torso.Position)
+
+				if visible and Visible(torso) then
+					local d = (Vector2.new(pos.X,pos.Y) -
+						Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+
+					if d < dist then
+						dist = d
+						closest = torso
+					end
+				end
+			end
+		end
+	end
+
+	return closest
+end
+
+RunService.RenderStepped:Connect(function()
+	if not Enabled then return end
+
+	local target = GetTarget()
+
+	if target then
+		Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
+	end
+end)
