@@ -12,8 +12,6 @@ local Camera = workspace.CurrentCamera
 
 local Config = {
 	AimAssist = false,
-	Smooth = true,
-	Smoothness = 0.65,
 	TargetPart = "Head",
 	ESP = false,
 	Boxes = true,
@@ -23,17 +21,19 @@ local Config = {
 	Noclip = false,
 	InfiniteJump = false,
 	WalkSpeed = 16,
-	FOV = 220,
+	FOV = 300,
 	ShowFOV = false,
 	AntiAFK = false,
 	FPSBoost = false,
 	AntiAim = false,
-	AntiAimSpeed = 35,
-	BubbleShots = true
+	AntiAimSpeed = 55,
+	BubbleShots = true,
+	Ragebot = false,
+	SkinChanger = false
 }
 
 local HiddenFolder = Instance.new("Folder")
-HiddenFolder.Name = tostring(math.random(100000, 999999))
+HiddenFolder.Name = tostring(math.random(100000,999999))
 HiddenFolder.Parent = CoreGui
 
 local FOVCircle
@@ -41,90 +41,94 @@ local Connections = {}
 local BulletConnection = nil
 local SoundConnection = nil
 local SpinAngle = 0
+local RageThread = nil
+local CurrentTarget = nil
+local CrosshairGui = nil
+local CrosshairBars = {}
 
 local BUBBLE_SOUND = "rbxassetid://12222216"
 
-local function SafeCall(fn, ...)
-	local success, result = pcall(fn, ...)
-	return success and result or nil
+local function SafeCall(fn,...)
+	local s,r = pcall(fn,...)
+	return s and r or nil
 end
 
 local function CreateLoadingScreen()
-	local ScreenGui = Instance.new("ScreenGui")
-	ScreenGui.Name = tostring(math.random(10000, 99999))
-	ScreenGui.IgnoreGuiInset = true
-	ScreenGui.ResetOnSpawn = false
-	ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	local sg = Instance.new("ScreenGui")
+	sg.Name = tostring(math.random(10000,99999))
+	sg.IgnoreGuiInset = true
+	sg.ResetOnSpawn = false
+	sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-	local Background = Instance.new("Frame")
-	Background.Size = UDim2.new(1, 0, 1, 0)
-	Background.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
-	Background.BorderSizePixel = 0
-	Background.Parent = ScreenGui
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1,0,1,0)
+	bg.BackgroundColor3 = Color3.fromRGB(8,8,8)
+	bg.BorderSizePixel = 0
+	bg.Parent = sg
 
-	local Title = Instance.new("TextLabel")
-	Title.Size = UDim2.new(1, 0, 0, 50)
-	Title.Position = UDim2.new(0, 0, 0.38, 0)
-	Title.BackgroundTransparency = 1
-	Title.Text = "Cargando módulos..."
-	Title.TextColor3 = Color3.fromRGB(0, 255, 130)
-	Title.Font = Enum.Font.GothamBold
-	Title.TextSize = 30
-	Title.Parent = Background
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1,0,0,50)
+	title.Position = UDim2.new(0,0,0.38,0)
+	title.BackgroundTransparency = 1
+	title.Text = "Cargando módulos..."
+	title.TextColor3 = Color3.fromRGB(0,255,130)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 30
+	title.Parent = bg
 
-	local Invite = Instance.new("TextLabel")
-	Invite.Size = UDim2.new(1, 0, 0, 30)
-	Invite.Position = UDim2.new(0, 0, 0.48, 0)
-	Invite.BackgroundTransparency = 1
-	Invite.Text = ".gg/tvYWHS2B8"
-	Invite.TextColor3 = Color3.fromRGB(180, 180, 180)
-	Invite.Font = Enum.Font.Gotham
-	Invite.TextSize = 18
-	Invite.Parent = Background
+	local invite = Instance.new("TextLabel")
+	invite.Size = UDim2.new(1,0,0,30)
+	invite.Position = UDim2.new(0,0,0.48,0)
+	invite.BackgroundTransparency = 1
+	invite.Text = ".gg/tvYWHS2B8"
+	invite.TextColor3 = Color3.fromRGB(180,180,180)
+	invite.Font = Enum.Font.Gotham
+	invite.TextSize = 18
+	invite.Parent = bg
 
-	local Percent = Instance.new("TextLabel")
-	Percent.Size = UDim2.new(1, 0, 0, 35)
-	Percent.Position = UDim2.new(0, 0, 0.55, 0)
-	Percent.BackgroundTransparency = 1
-	Percent.Text = "0%"
-	Percent.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Percent.Font = Enum.Font.GothamBold
-	Percent.TextSize = 20
-	Percent.Parent = Background
+	local percent = Instance.new("TextLabel")
+	percent.Size = UDim2.new(1,0,0,35)
+	percent.Position = UDim2.new(0,0,0.55,0)
+	percent.BackgroundTransparency = 1
+	percent.Text = "0%"
+	percent.TextColor3 = Color3.fromRGB(255,255,255)
+	percent.Font = Enum.Font.GothamBold
+	percent.TextSize = 20
+	percent.Parent = bg
 
-	local BarBG = Instance.new("Frame")
-	BarBG.Size = UDim2.new(0.55, 0, 0, 10)
-	BarBG.Position = UDim2.new(0.225, 0, 0.62, 0)
-	BarBG.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-	BarBG.BorderSizePixel = 0
-	BarBG.Parent = Background
-	Instance.new("UICorner", BarBG).CornerRadius = UDim.new(1, 0)
+	local barbg = Instance.new("Frame")
+	barbg.Size = UDim2.new(0.55,0,0,10)
+	barbg.Position = UDim2.new(0.225,0,0.62,0)
+	barbg.BackgroundColor3 = Color3.fromRGB(35,35,35)
+	barbg.BorderSizePixel = 0
+	barbg.Parent = bg
+	Instance.new("UICorner",barbg).CornerRadius = UDim.new(1,0)
 
-	local Bar = Instance.new("Frame")
-	Bar.Size = UDim2.new(0, 0, 1, 0)
-	Bar.BackgroundColor3 = Color3.fromRGB(0, 220, 100)
-	Bar.BorderSizePixel = 0
-	Bar.Parent = BarBG
-	Instance.new("UICorner", Bar).CornerRadius = UDim.new(1, 0)
+	local bar = Instance.new("Frame")
+	bar.Size = UDim2.new(0,0,1,0)
+	bar.BackgroundColor3 = Color3.fromRGB(0,220,100)
+	bar.BorderSizePixel = 0
+	bar.Parent = barbg
+	Instance.new("UICorner",bar).CornerRadius = UDim.new(1,0)
 
-	local Sound = Instance.new("Sound")
-	Sound.SoundId = "rbxassetid://76650356472656"
-	Sound.Volume = 1.4
-	Sound.Looped = true
-	Sound.Parent = SoundService
-	Sound:Play()
+	local snd = Instance.new("Sound")
+	snd.SoundId = "rbxassetid://76650356472656"
+	snd.Volume = 1.4
+	snd.Looped = true
+	snd.Parent = SoundService
+	snd:Play()
 
-	local startTime = tick()
-	local connection
-	connection = RunService.RenderStepped:Connect(function()
-		local progress = math.clamp((tick() - startTime) / 10, 0, 1)
-		Percent.Text = math.floor(progress * 100) .. "%"
-		Bar.Size = UDim2.new(progress, 0, 1, 0)
-		if progress >= 1 then
-			connection:Disconnect()
-			Sound:Stop()
-			Sound:Destroy()
-			ScreenGui:Destroy()
+	local st = tick()
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		local p = math.clamp((tick()-st)/10,0,1)
+		percent.Text = math.floor(p*100).."%"
+		bar.Size = UDim2.new(p,0,1,0)
+		if p >= 1 then
+			conn:Disconnect()
+			snd:Stop()
+			snd:Destroy()
+			sg:Destroy()
 		end
 	end)
 	task.wait(10.15)
@@ -135,12 +139,12 @@ CreateLoadingScreen()
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-	Name = "Arsenal Brutal",
-	LoadingTitle = "Arsenal Brutal",
+	Name = "gg hub free build",
+	LoadingTitle = "gg hub free build",
 	LoadingSubtitle = ".gg/tvYWHS2B8",
 	ConfigurationSaving = {
 		Enabled = true,
-		FolderName = "ArsenalBrutal",
+		FolderName = "gghub",
 		FileName = "Config"
 	},
 	Discord = {
@@ -151,51 +155,37 @@ local Window = Rayfield:CreateWindow({
 	KeySystem = false
 })
 
-local AimTab = Window:CreateTab("Aim", 4483362458)
-local VisualsTab = Window:CreateTab("Visuals", 4483362458)
-local MoveTab = Window:CreateTab("Movement", 4483362458)
-local MiscTab = Window:CreateTab("Misc", 4483362458)
+local AimTab = Window:CreateTab("Aim",4483362458)
+local VisualsTab = Window:CreateTab("Visuals",4483362458)
+local MoveTab = Window:CreateTab("Movement",4483362458)
+local MiscTab = Window:CreateTab("Misc",4483362458)
 
 AimTab:CreateToggle({
 	Name = "Aim Assist",
 	CurrentValue = false,
 	Flag = "AimAssist",
-	Callback = function(v)
-		Config.AimAssist = v
-	end
+	Callback = function(v) Config.AimAssist = v end
 })
 
-AimTab:CreateToggle({
-	Name = "Smooth Aim",
-	CurrentValue = true,
-	Flag = "Smooth",
+AimTab:CreateDropdown({
+	Name = "Target Part (solo Aim)",
+	Options = {"Head","UpperTorso"},
+	CurrentOption = "Head",
+	Flag = "TargetPart",
 	Callback = function(v)
-		Config.Smooth = v
-	end
-})
-
-AimTab:CreateSlider({
-	Name = "Smoothness",
-	Range = {0.1, 1},
-	Increment = 0.05,
-	CurrentValue = 0.65,
-	Flag = "Smoothness",
-	Callback = function(v)
-		Config.Smoothness = v
+		Config.TargetPart = typeof(v)=="table" and v[1] or v
 	end
 })
 
 AimTab:CreateSlider({
 	Name = "FOV",
-	Range = {50, 400},
+	Range = {50,450},
 	Increment = 10,
-	CurrentValue = 220,
+	CurrentValue = 300,
 	Flag = "FOV",
 	Callback = function(v)
 		Config.FOV = v
-		if FOVCircle then
-			FOVCircle.Size = UDim2.fromOffset(v * 2, v * 2)
-		end
+		if FOVCircle then FOVCircle.Size = UDim2.fromOffset(v*2,v*2) end
 	end
 })
 
@@ -205,19 +195,64 @@ AimTab:CreateToggle({
 	Flag = "ShowFOV",
 	Callback = function(v)
 		Config.ShowFOV = v
-		if FOVCircle then
-			FOVCircle.Visible = v
-		end
+		if FOVCircle then FOVCircle.Visible = v end
 	end
 })
 
-AimTab:CreateDropdown({
-	Name = "Target Part",
-	Options = {"Head", "UpperTorso", "HumanoidRootPart"},
-	CurrentOption = "Head",
-	Flag = "TargetPart",
+AimTab:CreateToggle({
+	Name = "Ragebot",
+	CurrentValue = false,
+	Flag = "Ragebot",
 	Callback = function(v)
-		Config.TargetPart = typeof(v) == "table" and v[1] or v
+		Config.Ragebot = v
+		if v then
+			if RageThread then task.cancel(RageThread) end
+			RageThread = task.spawn(function()
+				while Config.Ragebot do
+					local bestRoot = nil
+					local bestPart = nil
+					local bestDist = math.huge
+					local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+					if myRoot then
+						for _,plr in ipairs(Players:GetPlayers()) do
+							if plr ~= LocalPlayer and plr.Character and plr.Character.Parent == workspace then
+								local sameTeam = LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team
+								if not sameTeam then
+									local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+									local root = plr.Character:FindFirstChild("HumanoidRootPart")
+									local head = plr.Character:FindFirstChild("Head")
+									if hum and hum.Health > 0 and root and head and hum.Health <= 100 then
+										local pos = root.Position
+										if pos.Y > -50 and pos.Y < 500 then
+											local d = (pos - myRoot.Position).Magnitude
+											if d < bestDist and d < 800 then
+												bestDist = d
+												bestRoot = root
+												bestPart = head
+											end
+										end
+									end
+								end
+							end
+						end
+						if bestRoot and bestPart then
+							CurrentTarget = bestPart
+							local offset = bestRoot.CFrame.RightVector * 1.6
+							myRoot.CFrame = CFrame.new(bestRoot.Position + offset + Vector3.new(0,0.6,0))
+						else
+							CurrentTarget = nil
+						end
+					end
+					task.wait(0.005)
+				end
+			end)
+		else
+			if RageThread then
+				task.cancel(RageThread)
+				RageThread = nil
+			end
+			CurrentTarget = nil
+		end
 	end
 })
 
@@ -225,64 +260,59 @@ AimTab:CreateToggle({
 	Name = "Anti Aim",
 	CurrentValue = false,
 	Flag = "AntiAim",
-	Callback = function(v)
-		Config.AntiAim = v
-	end
+	Callback = function(v) Config.AntiAim = v end
 })
 
 AimTab:CreateSlider({
 	Name = "Anti Aim Speed",
-	Range = {10, 80},
+	Range = {15,100},
 	Increment = 5,
-	CurrentValue = 35,
+	CurrentValue = 55,
 	Flag = "AntiAimSpeed",
-	Callback = function(v)
-		Config.AntiAimSpeed = v
-	end
+	Callback = function(v) Config.AntiAimSpeed = v end
 })
 
 VisualsTab:CreateToggle({
 	Name = "ESP",
 	CurrentValue = false,
 	Flag = "ESP",
-	Callback = function(v)
-		Config.ESP = v
-	end
+	Callback = function(v) Config.ESP = v end
 })
 
 VisualsTab:CreateToggle({
 	Name = "Boxes",
 	CurrentValue = true,
 	Flag = "Boxes",
-	Callback = function(v)
-		Config.Boxes = v
-	end
+	Callback = function(v) Config.Boxes = v end
 })
 
 VisualsTab:CreateToggle({
 	Name = "Names",
 	CurrentValue = true,
 	Flag = "Names",
-	Callback = function(v)
-		Config.Names = v
-	end
+	Callback = function(v) Config.Names = v end
 })
 
 VisualsTab:CreateToggle({
 	Name = "Health",
 	CurrentValue = true,
 	Flag = "Health",
-	Callback = function(v)
-		Config.Health = v
-	end
+	Callback = function(v) Config.Health = v end
 })
 
 VisualsTab:CreateToggle({
 	Name = "Distance",
 	CurrentValue = true,
 	Flag = "Distance",
+	Callback = function(v) Config.Distance = v end
+})
+
+VisualsTab:CreateToggle({
+	Name = "Animated Crosshair",
+	CurrentValue = true,
+	Flag = "Crosshair",
 	Callback = function(v)
-		Config.Distance = v
+		if CrosshairGui then CrosshairGui.Enabled = v end
 	end
 })
 
@@ -293,10 +323,8 @@ MoveTab:CreateToggle({
 	Callback = function(v)
 		Config.Noclip = v
 		if not v and LocalPlayer.Character then
-			for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = true
-				end
+			for _,p in ipairs(LocalPlayer.Character:GetDescendants()) do
+				if p:IsA("BasePart") then p.CanCollide = true end
 			end
 		end
 	end
@@ -306,48 +334,42 @@ MoveTab:CreateToggle({
 	Name = "Infinite Jump",
 	CurrentValue = false,
 	Flag = "InfiniteJump",
-	Callback = function(v)
-		Config.InfiniteJump = v
-	end
+	Callback = function(v) Config.InfiniteJump = v end
 })
 
 MoveTab:CreateSlider({
 	Name = "WalkSpeed",
-	Range = {16, 120},
+	Range = {16,140},
 	Increment = 2,
 	CurrentValue = 16,
 	Flag = "WalkSpeed",
 	Callback = function(v)
 		Config.WalkSpeed = v
 		SafeCall(function()
-			local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-			if hum then hum.WalkSpeed = v end
+			local h = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			if h then h.WalkSpeed = v end
 		end)
 	end
 })
 
 local function NukeVisuals(obj)
 	if not obj or not obj.Parent then return end
-
-	local name = string.lower(tostring(obj.Name))
-
-	if name:find("bullet") or name:find("projectile") or name:find("shot") or name:find("pellet") or name:find("tracer") or name:find("muzzle") or name:find("shell") then
-		if obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part") then
+	local n = string.lower(tostring(obj.Name))
+	if n:find("bullet") or n:find("projectile") or n:find("shot") or n:find("pellet") or n:find("tracer") or n:find("muzzle") or n:find("shell") then
+		if obj:IsA("BasePart") or obj:IsA("MeshPart") then
 			obj.Transparency = 1
 			obj.CanCollide = false
 			obj.CastShadow = false
-			obj.Material = Enum.Material.SmoothPlastic
 		end
 		pcall(function() obj:Destroy() end)
 	end
-
 	if obj:IsA("Texture") or obj:IsA("Decal") then
 		obj.Transparency = 1
 		pcall(function() obj:Destroy() end)
-	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Explosion") then
+	elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
 		obj.Enabled = false
 		pcall(function() obj:Destroy() end)
-	elseif obj:IsA("MeshPart") or obj:IsA("Part") or obj:IsA("UnionOperation") then
+	elseif obj:IsA("MeshPart") or obj:IsA("Part") then
 		obj.Material = Enum.Material.SmoothPlastic
 		obj.CastShadow = false
 	end
@@ -358,69 +380,68 @@ local function ApplyFPSBoost(state)
 		SafeCall(function()
 			settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
 			UserSettings():GetService("UserGameSettings").SavedQualityLevel = Enum.SavedQualitySetting.QualityLevel1
-
 			Lighting.GlobalShadows = false
 			Lighting.FogEnd = 9e9
 			Lighting.Brightness = 1
-			Lighting.ClockTime = 14
-			Lighting.OutdoorAmbient = Color3.new(0.5, 0.5, 0.5)
-
-			for _, obj in pairs(workspace:GetDescendants()) do
-				NukeVisuals(obj)
-			end
-			for _, obj in pairs(Lighting:GetDescendants()) do
-				NukeVisuals(obj)
-			end
+			for _,o in pairs(workspace:GetDescendants()) do NukeVisuals(o) end
+			for _,o in pairs(Lighting:GetDescendants()) do NukeVisuals(o) end
 		end)
-
-		if BulletConnection then
-			BulletConnection:Disconnect()
-		end
-		BulletConnection = workspace.DescendantAdded:Connect(function(obj)
-			task.defer(function()
-				NukeVisuals(obj)
-			end)
+		if BulletConnection then BulletConnection:Disconnect() end
+		BulletConnection = workspace.DescendantAdded:Connect(function(o)
+			task.defer(function() NukeVisuals(o) end)
 		end)
 	else
-		if BulletConnection then
-			BulletConnection:Disconnect()
-			BulletConnection = nil
-		end
+		if BulletConnection then BulletConnection:Disconnect() BulletConnection = nil end
 	end
 end
 
 local function ApplyBubbleShots(state)
 	if state then
-		if SoundConnection then
-			SoundConnection:Disconnect()
-		end
-		SoundConnection = workspace.DescendantAdded:Connect(function(obj)
-			if obj:IsA("Sound") then
+		if SoundConnection then SoundConnection:Disconnect() end
+		SoundConnection = workspace.DescendantAdded:Connect(function(o)
+			if o:IsA("Sound") then
 				task.defer(function()
-					local name = string.lower(obj.Name)
-					if name:find("gun") or name:find("shot") or name:find("fire") or name:find("bullet") or name:find("shoot") or name:find("weapon") or name:find("pew") or obj.SoundId ~= "" then
-						obj.SoundId = BUBBLE_SOUND
-						obj.Volume = 1.5
-						obj.PlaybackSpeed = 1.1 + math.random() * 0.3
+					local n = string.lower(o.Name)
+					if n:find("gun") or n:find("shot") or n:find("fire") or n:find("bullet") or n:find("shoot") or n:find("weapon") then
+						o.SoundId = BUBBLE_SOUND
+						o.Volume = 1.6
+						o.PlaybackSpeed = 1.05 + math.random()*0.35
 					end
 				end)
 			end
 		end)
+	else
+		if SoundConnection then SoundConnection:Disconnect() SoundConnection = nil end
+	end
+end
 
-		for _, obj in pairs(workspace:GetDescendants()) do
-			if obj:IsA("Sound") then
-				local name = string.lower(obj.Name)
-				if name:find("gun") or name:find("shot") or name:find("fire") or name:find("bullet") or name:find("shoot") or name:find("weapon") then
-					obj.SoundId = BUBBLE_SOUND
+local function ApplySkinChanger()
+	SafeCall(function()
+		local function process(container)
+			for _,tool in ipairs(container:GetChildren()) do
+				if tool:IsA("Tool") then
+					for _,v in ipairs(tool:GetDescendants()) do
+						if v:IsA("MeshPart") or v:IsA("Part") then
+							v.Material = Enum.Material.SmoothPlastic
+							v.Color = Color3.fromRGB(math.random(50,255),math.random(50,255),math.random(50,255))
+						end
+						if v:IsA("SpecialMesh") then
+							v.TextureId = ""
+						end
+						if v:IsA("Decal") or v:IsA("Texture") then
+							v.Transparency = 0
+						end
+						if string.find(string.lower(v.Name),"lock") or string.find(string.lower(v.Name),"owned") then
+							if v:IsA("BoolValue") then v.Value = true end
+							if v:IsA("StringValue") then v.Value = "Unlocked" end
+						end
+					end
 				end
 			end
 		end
-	else
-		if SoundConnection then
-			SoundConnection:Disconnect()
-			SoundConnection = nil
-		end
-	end
+		if LocalPlayer.Character then process(LocalPlayer.Character) end
+		if LocalPlayer:FindFirstChild("Backpack") then process(LocalPlayer.Backpack) end
+	end)
 end
 
 MiscTab:CreateToggle({
@@ -444,54 +465,111 @@ MiscTab:CreateToggle({
 })
 
 MiscTab:CreateToggle({
-	Name = "Anti AFK",
+	Name = "Skin Changer",
 	CurrentValue = false,
-	Flag = "AntiAFK",
+	Flag = "SkinChanger",
 	Callback = function(v)
-		Config.AntiAFK = v
+		Config.SkinChanger = v
+		if v then ApplySkinChanger() end
 	end
 })
 
-FOVCircle = Instance.new("Frame")
-FOVCircle.Name = tostring(math.random(10000, 99999))
-FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
-FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
-FOVCircle.BackgroundTransparency = 1
-FOVCircle.Visible = Config.ShowFOV
-FOVCircle.Parent = HiddenFolder
-local CircleStroke = Instance.new("UIStroke", FOVCircle)
-CircleStroke.Thickness = 1.8
-CircleStroke.Color = Color3.fromRGB(0, 255, 120)
-Instance.new("UICorner", FOVCircle).CornerRadius = UDim.new(1, 0)
+MiscTab:CreateToggle({
+	Name = "Anti AFK",
+	CurrentValue = false,
+	Flag = "AntiAFK",
+	Callback = function(v) Config.AntiAFK = v end
+})
 
-local function IsEnemy(player)
-	if player == LocalPlayer then return false end
-	if LocalPlayer.Team and player.Team and LocalPlayer.Team == player.Team then return false end
+FOVCircle = Instance.new("Frame")
+FOVCircle.Name = tostring(math.random(10000,99999))
+FOVCircle.Size = UDim2.fromOffset(Config.FOV*2,Config.FOV*2)
+FOVCircle.AnchorPoint = Vector2.new(0.5,0.5)
+FOVCircle.Position = UDim2.fromScale(0.5,0.5)
+FOVCircle.BackgroundTransparency = 1
+FOVCircle.Visible = false
+FOVCircle.Parent = HiddenFolder
+local cs = Instance.new("UIStroke",FOVCircle)
+cs.Thickness = 1.8
+cs.Color = Color3.fromRGB(0,255,120)
+Instance.new("UICorner",FOVCircle).CornerRadius = UDim.new(1,0)
+
+CrosshairGui = Instance.new("ScreenGui")
+CrosshairGui.Name = tostring(math.random(10000,99999))
+CrosshairGui.IgnoreGuiInset = true
+CrosshairGui.ResetOnSpawn = false
+CrosshairGui.Parent = CoreGui
+
+local chFrame = Instance.new("Frame")
+chFrame.Size = UDim2.fromOffset(70,70)
+chFrame.AnchorPoint = Vector2.new(0.5,0.5)
+chFrame.Position = UDim2.fromScale(0.5,0.5)
+chFrame.BackgroundTransparency = 1
+chFrame.Parent = CrosshairGui
+
+for i = 1,4 do
+	local bar = Instance.new("Frame")
+	bar.Size = UDim2.fromOffset(3,14)
+	bar.AnchorPoint = Vector2.new(0.5,0.5)
+	bar.BackgroundColor3 = Color3.fromRGB(0,255,130)
+	bar.BorderSizePixel = 0
+	bar.Parent = chFrame
+	Instance.new("UICorner",bar).CornerRadius = UDim.new(1,0)
+	table.insert(CrosshairBars,bar)
+end
+
+local rot = 0
+table.insert(Connections,RunService.RenderStepped:Connect(function(dt)
+	rot = rot + dt * 420
+	local rad = math.rad(rot)
+	local sep = 11
+	for i,bar in ipairs(CrosshairBars) do
+		local a = rad + (i-1)*(math.pi/2)
+		bar.Position = UDim2.new(0.5,math.cos(a)*sep,0.5,math.sin(a)*sep)
+		bar.Rotation = math.deg(a) + 90
+	end
+end))
+
+local function IsEnemy(p)
+	if p == LocalPlayer then return false end
+	if LocalPlayer.Team and p.Team and LocalPlayer.Team == p.Team then return false end
+	return true
+end
+
+local function IsValidEnemy(plr)
+	if not IsEnemy(plr) then return false end
+	if not plr.Character or plr.Character.Parent ~= workspace then return false end
+	local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+	local root = plr.Character:FindFirstChild("HumanoidRootPart")
+	local head = plr.Character:FindFirstChild("Head")
+	if not hum or not root or not head then return false end
+	if hum.Health <= 0 or hum.Health > 100 then return false end
+	local pos = root.Position
+	if pos.Y < -50 or pos.Y > 500 then return false end
 	return true
 end
 
 local function IsVisible(part)
 	local origin = Camera.CFrame.Position
-	local direction = part.Position - origin
+	local dir = part.Position - origin
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Blacklist
-	params.FilterDescendantsInstances = {LocalPlayer.Character, Camera}
-	local result = workspace:Raycast(origin, direction, params)
-	return not result or result.Instance:IsDescendantOf(part.Parent)
+	params.FilterDescendantsInstances = {LocalPlayer.Character,Camera}
+	local res = workspace:Raycast(origin,dir,params)
+	return not res or res.Instance:IsDescendantOf(part.Parent)
 end
 
-local function GetClosestEnemy()
-	local closest, shortest = nil, Config.FOV
-	local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if IsEnemy(plr) and plr.Character then
-			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-			local part = plr.Character:FindFirstChild(Config.TargetPart) or plr.Character:FindFirstChild("Head") or plr.Character:FindFirstChild("HumanoidRootPart")
-			if hum and hum.Health > 0 and part then
-				local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-				if onScreen and IsVisible(part) then
-					local dist = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+local function GetClosestEnemy(forceHead)
+	local closest,shortest = nil,Config.FOV
+	local center = Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+	local partName = forceHead and "Head" or Config.TargetPart
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if IsValidEnemy(plr) then
+			local part = plr.Character:FindFirstChild(partName) or plr.Character:FindFirstChild("Head")
+			if part then
+				local pos,onScreen = Camera:WorldToViewportPoint(part.Position)
+				if onScreen then
+					local dist = (Vector2.new(pos.X,pos.Y)-center).Magnitude
 					if dist < shortest then
 						shortest = dist
 						closest = part
@@ -504,10 +582,8 @@ local function GetClosestEnemy()
 end
 
 local function ClearESP()
-	for _, v in ipairs(HiddenFolder:GetChildren()) do
-		if v:IsA("BillboardGui") or v:IsA("Highlight") then
-			v:Destroy()
-		end
+	for _,v in ipairs(HiddenFolder:GetChildren()) do
+		if v:IsA("BillboardGui") or v:IsA("Highlight") then v:Destroy() end
 	end
 end
 
@@ -518,80 +594,71 @@ local function CreateESP(player)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not root or not hum then return end
 
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = tostring(math.random(10000, 99999))
-	billboard.Adornee = root
-	billboard.Size = UDim2.new(0, 200, 0, 50)
-	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = HiddenFolder
+	local bb = Instance.new("BillboardGui")
+	bb.Name = tostring(math.random(10000,99999))
+	bb.Adornee = root
+	bb.Size = UDim2.new(0,200,0,50)
+	bb.StudsOffset = Vector3.new(0,3.2,0)
+	bb.AlwaysOnTop = true
+	bb.Parent = HiddenFolder
 
 	if Config.Names or Config.Health or Config.Distance then
-		local text = Instance.new("TextLabel")
-		text.Size = UDim2.new(1, 0, 1, 0)
-		text.BackgroundTransparency = 1
-		text.TextColor3 = Color3.fromRGB(255, 60, 60)
-		text.Font = Enum.Font.GothamBold
-		text.TextSize = 13
-		text.TextStrokeTransparency = 0.3
-		text.Parent = billboard
+		local txt = Instance.new("TextLabel")
+		txt.Size = UDim2.new(1,0,1,0)
+		txt.BackgroundTransparency = 1
+		txt.TextColor3 = Color3.fromRGB(255,50,50)
+		txt.Font = Enum.Font.GothamBold
+		txt.TextSize = 13
+		txt.TextStrokeTransparency = 0.3
+		txt.Parent = bb
 
-		local function update()
-			if not char or not hum or hum.Health <= 0 then
-				billboard:Destroy()
-				return
-			end
+		local function upd()
+			if not char or not hum or hum.Health <= 0 then bb:Destroy() return end
 			local parts = {}
-			if Config.Names then table.insert(parts, player.Name) end
-			if Config.Health then table.insert(parts, math.floor(hum.Health) .. " HP") end
+			if Config.Names then table.insert(parts,player.Name) end
+			if Config.Health then table.insert(parts,math.floor(hum.Health).." HP") end
 			if Config.Distance and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
 				local d = (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-				table.insert(parts, math.floor(d) .. "m")
+				table.insert(parts,math.floor(d).."m")
 			end
-			text.Text = table.concat(parts, " | ")
+			txt.Text = table.concat(parts," | ")
 		end
-		update()
-		table.insert(Connections, hum.HealthChanged:Connect(update))
+		upd()
+		table.insert(Connections,hum.HealthChanged:Connect(upd))
 	end
 
 	if Config.Boxes then
-		local highlight = Instance.new("Highlight")
-		highlight.Name = tostring(math.random(10000, 99999))
-		highlight.Adornee = char
-		highlight.FillColor = Color3.fromRGB(255, 40, 40)
-		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-		highlight.FillTransparency = 0.55
-		highlight.OutlineTransparency = 0
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.Parent = HiddenFolder
+		local hl = Instance.new("Highlight")
+		hl.Name = tostring(math.random(10000,99999))
+		hl.Adornee = char
+		hl.FillColor = Color3.fromRGB(255,35,35)
+		hl.OutlineColor = Color3.fromRGB(255,255,255)
+		hl.FillTransparency = 0.55
+		hl.OutlineTransparency = 0
+		hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		hl.Parent = HiddenFolder
 	end
 end
 
 local function UpdateESP()
 	ClearESP()
 	if not Config.ESP then return end
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if IsEnemy(plr) then
-			CreateESP(plr)
-		end
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if IsValidEnemy(plr) then CreateESP(plr) end
 	end
 end
 
-table.insert(Connections, RunService.Stepped:Connect(function()
+table.insert(Connections,RunService.Stepped:Connect(function()
 	if LocalPlayer.Character then
-		for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-			if part:IsA("BasePart") then
-				if Config.Noclip then
-					part.CanCollide = false
-				else
-					part.CanCollide = true
-				end
+		for _,p in ipairs(LocalPlayer.Character:GetDescendants()) do
+			if p:IsA("BasePart") then
+				p.CanCollide = not Config.Noclip
 			end
 		end
 	end
 end))
 
-table.insert(Connections, UserInputService.JumpRequest:Connect(function()
+table.insert(Connections,UserInputService.JumpRequest:Connect(function()
 	if Config.InfiniteJump then
 		local char = LocalPlayer.Character
 		if char then
@@ -599,20 +666,20 @@ table.insert(Connections, UserInputService.JumpRequest:Connect(function()
 			local root = char:FindFirstChild("HumanoidRootPart")
 			if hum and root then
 				hum:ChangeState(Enum.HumanoidStateType.Jumping)
-				root.Velocity = Vector3.new(root.Velocity.X, 50, root.Velocity.Z)
+				root.Velocity = Vector3.new(root.Velocity.X,55,root.Velocity.Z)
 			end
 		end
 	end
 end))
 
-table.insert(Connections, LocalPlayer.Idled:Connect(function()
+table.insert(Connections,LocalPlayer.Idled:Connect(function()
 	if Config.AntiAFK then
 		VirtualUser:CaptureController()
 		VirtualUser:ClickButton2(Vector2.new())
 	end
 end))
 
-table.insert(Connections, RunService.RenderStepped:Connect(function()
+table.insert(Connections,RunService.RenderStepped:Connect(function()
 	SafeCall(function()
 		if LocalPlayer.Character then
 			local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -623,57 +690,65 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 
 		if FOVCircle then
 			FOVCircle.Visible = Config.ShowFOV
-			FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
+			FOVCircle.Size = UDim2.fromOffset(Config.FOV*2,Config.FOV*2)
 		end
 
 		if Config.AntiAim then
 			local char = LocalPlayer.Character
 			if char then
 				local root = char:FindFirstChild("HumanoidRootPart")
+				local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+				SpinAngle = SpinAngle + Config.AntiAimSpeed
 				if root then
-					SpinAngle = SpinAngle + Config.AntiAimSpeed
-					root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.rad(SpinAngle), 0)
+					root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0,math.rad(SpinAngle),0)
+				end
+				if torso then
+					torso.CFrame = CFrame.new(torso.Position) * CFrame.Angles(0,math.rad(SpinAngle*1.3),0)
 				end
 			end
 		end
 
 		if Config.AimAssist then
-			local target = GetClosestEnemy()
+			local target
+			if Config.Ragebot and CurrentTarget and CurrentTarget.Parent then
+				target = CurrentTarget
+			else
+				target = GetClosestEnemy(false)
+			end
 			if target then
-				local current = Camera.CFrame
-				local goal = CFrame.lookAt(current.Position, target.Position)
-				if Config.Smooth then
-					Camera.CFrame = current:Lerp(goal, Config.Smoothness)
-				else
+				local goal = CFrame.lookAt(Camera.CFrame.Position,target.Position)
+				if Config.Ragebot then
 					Camera.CFrame = goal
+				else
+					Camera.CFrame = Camera.CFrame:Lerp(goal,0.92)
 				end
 			end
+		end
+
+		if Config.SkinChanger then
+			ApplySkinChanger()
 		end
 	end)
 end))
 
 task.spawn(function()
-	while task.wait(0.55) do
-		if Config.ESP then
-			SafeCall(UpdateESP)
-		end
+	while task.wait(0.4) do
+		if Config.ESP then SafeCall(UpdateESP) end
 	end
 end)
 
-table.insert(Connections, LocalPlayer.CharacterAdded:Connect(function(char)
-	task.wait(0.3)
-	local hum = char:WaitForChild("Humanoid", 5)
-	if hum then
-		hum.WalkSpeed = Config.WalkSpeed
+table.insert(Connections,LocalPlayer.CharacterAdded:Connect(function(char)
+	task.wait(0.25)
+	local hum = char:WaitForChild("Humanoid",5)
+	if hum then hum.WalkSpeed = Config.WalkSpeed end
+	for _,p in ipairs(char:GetDescendants()) do
+		if p:IsA("BasePart") then p.CanCollide = not Config.Noclip end
 	end
-	for _, part in ipairs(char:GetDescendants()) do
-		if part:IsA("BasePart") then
-			part.CanCollide = not Config.Noclip
-		end
+	if Config.SkinChanger then
+		task.wait(0.6)
+		ApplySkinChanger()
 	end
 end))
 
--- Activar Bubble Shots por defecto
 ApplyBubbleShots(true)
-
 Rayfield:LoadConfiguration()
