@@ -1,26 +1,42 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 local SoundService = game:GetService("SoundService")
+local VirtualUser = game:GetService("VirtualUser")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local Config = {
 	AimAssist = false,
+	Smooth = true,
+	Smoothness = 0.50,
+	TargetPart = "Head",
+	Triggerbot = false,
 	ESP = false,
+	Tracers = false,
+	Boxes = true,
+	Names = true,
+	Health = true,
+	Distance = true,
 	Noclip = false,
+	InfiniteJump = false,
 	WalkSpeed = 16,
-	FOV = 120,
-	Smoothness = 0.22,
-	TargetPart = "UpperTorso",
-	ShowFOV = true
+	FOV = 180,
+	ShowFOV = true,
+	AntiAFK = true,
+	AntiRecoil = false,
+	AntiRecoilStrength = 1.8
 }
 
-local ConfigsFolder = "ArsenalConfigs"
-local SavedConfigs = {}
-local ESPObjects = {}
+local ESPFolder = Instance.new("Folder")
+ESPFolder.Name = "ESPFolder"
+ESPFolder.Parent = game.CoreGui
+
 local FOVCircle
+local Gui
+local lastClick = 0
+local CLICK_COOLDOWN = 0.20
 
 local function CreateLoadingScreen()
 	local ScreenGui = Instance.new("ScreenGui")
@@ -101,7 +117,7 @@ end
 
 CreateLoadingScreen()
 
-local Gui = Instance.new("ScreenGui")
+Gui = Instance.new("ScreenGui")
 Gui.Name = "ArsenalHub"
 Gui.ResetOnSpawn = false
 Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -117,34 +133,27 @@ HubButton.Font = Enum.Font.GothamBold
 HubButton.TextSize = 18
 HubButton.Parent = Gui
 
-local HubCorner = Instance.new("UICorner")
-HubCorner.CornerRadius = UDim.new(0, 8)
-HubCorner.Parent = HubButton
-
-local HubStroke = Instance.new("UIStroke")
+Instance.new("UICorner", HubButton).CornerRadius = UDim.new(0, 8)
+local HubStroke = Instance.new("UIStroke", HubButton)
 HubStroke.Color = Color3.fromRGB(0, 200, 100)
 HubStroke.Thickness = 1.5
-HubStroke.Parent = HubButton
 
 local Menu = Instance.new("ScrollingFrame")
-Menu.Size = UDim2.new(0, 280, 0, 380)
+Menu.Size = UDim2.new(0, 290, 0, 420)
 Menu.Position = UDim2.new(0, 15, 0, 65)
 Menu.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
 Menu.BorderSizePixel = 0
 Menu.ScrollBarThickness = 5
 Menu.ScrollBarImageColor3 = Color3.fromRGB(0, 200, 100)
-Menu.CanvasSize = UDim2.new(0, 0, 0, 480)
+Menu.CanvasSize = UDim2.new(0, 0, 0, 0)
+Menu.AutomaticCanvasSize = Enum.AutomaticSize.Y
 Menu.Visible = false
 Menu.Parent = Gui
 
-local MenuCorner = Instance.new("UICorner")
-MenuCorner.CornerRadius = UDim.new(0, 10)
-MenuCorner.Parent = Menu
-
-local MenuStroke = Instance.new("UIStroke")
+Instance.new("UICorner", Menu).CornerRadius = UDim.new(0, 10)
+local MenuStroke = Instance.new("UIStroke", Menu)
 MenuStroke.Color = Color3.fromRGB(0, 180, 90)
 MenuStroke.Thickness = 1.5
-MenuStroke.Parent = Menu
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, 0, 0, 35)
@@ -157,17 +166,15 @@ TitleLabel.Parent = Menu
 
 local function CreateToggle(name, yPos, default, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.9, 0, 0, 36)
+	btn.Size = UDim2.new(0.9, 0, 0, 34)
 	btn.Position = UDim2.new(0.05, 0, 0, yPos)
 	btn.BackgroundColor3 = default and Color3.fromRGB(0, 120, 60) or Color3.fromRGB(40, 40, 40)
 	btn.Text = name .. ": " .. (default and "ON" or "OFF")
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
+	btn.TextSize = 13
 	btn.Parent = Menu
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
-	corner.Parent = btn
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	local state = default
 	btn.MouseButton1Click:Connect(function()
 		state = not state
@@ -178,31 +185,63 @@ local function CreateToggle(name, yPos, default, callback)
 	return btn
 end
 
-local function CreateButton(name, yPos, callback, parent)
-	parent = parent or Menu
+local function CreateButton(name, yPos, callback)
 	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0.9, 0, 0, 34)
+	btn.Size = UDim2.new(0.9, 0, 0, 32)
 	btn.Position = UDim2.new(0.05, 0, 0, yPos)
 	btn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 	btn.Text = name
 	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 	btn.Font = Enum.Font.Gotham
-	btn.TextSize = 14
-	btn.Parent = parent
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
-	corner.Parent = btn
+	btn.TextSize = 13
+	btn.Parent = Menu
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 	btn.MouseButton1Click:Connect(callback)
 	return btn
 end
 
-CreateToggle("Aim Assist", 45, false, function(v) Config.AimAssist = v end)
-CreateToggle("ESP", 85, false, function(v) Config.ESP = v end)
-CreateToggle("Noclip", 125, false, function(v) Config.Noclip = v end)
+local function CreateLabel(text, yPos)
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0.9, 0, 0, 22)
+	lbl.Position = UDim2.new(0.05, 0, 0, yPos)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.TextColor3 = Color3.fromRGB(0, 220, 100)
+	lbl.Font = Enum.Font.GothamBold
+	lbl.TextSize = 13
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.Parent = Menu
+	return lbl
+end
+
+CreateLabel("── ASISTENCIA ──", 40)
+CreateToggle("Aim Assist", 65, false, function(v) Config.AimAssist = v end)
+CreateToggle("Smooth Aim", 102, true, function(v) Config.Smooth = v end)
+CreateToggle("Triggerbot", 139, false, function(v) Config.Triggerbot = v end)
+CreateToggle("Anti Recoil", 176, false, function(v) Config.AntiRecoil = v end)
+
+CreateButton("Prioridad: Torso", 213, function()
+	Config.TargetPart = "UpperTorso"
+end)
+CreateButton("Prioridad: Cabeza", 248, function()
+	Config.TargetPart = "Head"
+end)
+
+CreateLabel("── VISUALES ──", 292)
+CreateToggle("ESP", 317, false, function(v) Config.ESP = v end)
+CreateToggle("Cajas", 354, true, function(v) Config.Boxes = v end)
+CreateToggle("Nombres", 391, true, function(v) Config.Names = v end)
+CreateToggle("Vida", 428, true, function(v) Config.Health = v end)
+CreateToggle("Distancia", 465, true, function(v) Config.Distance = v end)
+CreateToggle("Tracers", 502, false, function(v) Config.Tracers = v end)
+
+CreateLabel("── MOVIMIENTO ──", 547)
+CreateToggle("Noclip", 572, false, function(v) Config.Noclip = v end)
+CreateToggle("Infinite Jump", 609, false, function(v) Config.InfiniteJump = v end)
 
 local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(0.9, 0, 0, 25)
-SpeedLabel.Position = UDim2.new(0.05, 0, 0, 165)
+SpeedLabel.Size = UDim2.new(0.9, 0, 0, 22)
+SpeedLabel.Position = UDim2.new(0.05, 0, 0, 647)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Text = "WalkSpeed: 16"
 SpeedLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -211,192 +250,39 @@ SpeedLabel.TextSize = 13
 SpeedLabel.Parent = Menu
 
 local function ChangeSpeed(amount)
-	Config.WalkSpeed = math.clamp(Config.WalkSpeed + amount, 16, 100)
+	Config.WalkSpeed = math.clamp(Config.WalkSpeed + amount, 16, 120)
 	SpeedLabel.Text = "WalkSpeed: " .. Config.WalkSpeed
 	if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
 		LocalPlayer.Character.Humanoid.WalkSpeed = Config.WalkSpeed
 	end
 end
 
-CreateButton("Speed +", 190, function() ChangeSpeed(5) end)
-CreateButton("Speed -", 228, function() ChangeSpeed(-5) end)
+CreateButton("Speed +", 672, function() ChangeSpeed(5) end)
+CreateButton("Speed -", 707, function() ChangeSpeed(-5) end)
 
 local FOVLabel = Instance.new("TextLabel")
-FOVLabel.Size = UDim2.new(0.9, 0, 0, 25)
-FOVLabel.Position = UDim2.new(0.05, 0, 0, 268)
+FOVLabel.Size = UDim2.new(0.9, 0, 0, 22)
+FOVLabel.Position = UDim2.new(0.05, 0, 0, 747)
 FOVLabel.BackgroundTransparency = 1
-FOVLabel.Text = "FOV: 120"
+FOVLabel.Text = "FOV: 180"
 FOVLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 FOVLabel.Font = Enum.Font.Gotham
 FOVLabel.TextSize = 13
 FOVLabel.Parent = Menu
 
 local function ChangeFOV(amount)
-	Config.FOV = math.clamp(Config.FOV + amount, 40, 350)
+	Config.FOV = math.clamp(Config.FOV + amount, 40, 400)
 	FOVLabel.Text = "FOV: " .. Config.FOV
 	if FOVCircle then
 		FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
 	end
 end
 
-CreateButton("FOV +", 293, function() ChangeFOV(20) end)
-CreateButton("FOV -", 331, function() ChangeFOV(-20) end)
-
-CreateButton("Abrir Configs", 375, function()
-	ConfigFrame.Visible = not ConfigFrame.Visible
-end)
-
-local ConfigFrame = Instance.new("Frame")
-ConfigFrame.Size = UDim2.new(0, 260, 0, 320)
-ConfigFrame.Position = UDim2.new(0, 310, 0, 65)
-ConfigFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
-ConfigFrame.Visible = false
-ConfigFrame.Parent = Gui
-
-local CFCorner = Instance.new("UICorner")
-CFCorner.CornerRadius = UDim.new(0, 10)
-CFCorner.Parent = ConfigFrame
-
-local CFStroke = Instance.new("UIStroke")
-CFStroke.Color = Color3.fromRGB(0, 180, 90)
-CFStroke.Thickness = 1.5
-CFStroke.Parent = ConfigFrame
-
-local CFTitle = Instance.new("TextLabel")
-CFTitle.Size = UDim2.new(1, 0, 0, 30)
-CFTitle.BackgroundTransparency = 1
-CFTitle.Text = "Configs"
-CFTitle.TextColor3 = Color3.fromRGB(0, 255, 130)
-CFTitle.Font = Enum.Font.GothamBold
-CFTitle.TextSize = 16
-CFTitle.Parent = ConfigFrame
-
-local ConfigNameBox = Instance.new("TextBox")
-ConfigNameBox.Size = UDim2.new(0.9, 0, 0, 32)
-ConfigNameBox.Position = UDim2.new(0.05, 0, 0, 40)
-ConfigNameBox.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-ConfigNameBox.Text = ""
-ConfigNameBox.PlaceholderText = "Nombre de la config"
-ConfigNameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-ConfigNameBox.Font = Enum.Font.Gotham
-ConfigNameBox.TextSize = 14
-ConfigNameBox.Parent = ConfigFrame
-
-local BoxCorner = Instance.new("UICorner")
-BoxCorner.CornerRadius = UDim.new(0, 6)
-BoxCorner.Parent = ConfigNameBox
-
-local ConfigList = Instance.new("ScrollingFrame")
-ConfigList.Size = UDim2.new(0.9, 0, 0, 160)
-ConfigList.Position = UDim2.new(0.05, 0, 0, 120)
-ConfigList.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-ConfigList.BorderSizePixel = 0
-ConfigList.ScrollBarThickness = 4
-ConfigList.CanvasSize = UDim2.new(0, 0, 0, 0)
-ConfigList.Parent = ConfigFrame
-
-local ListCorner = Instance.new("UICorner")
-ListCorner.CornerRadius = UDim.new(0, 6)
-ListCorner.Parent = ConfigList
-
-local ListLayout = Instance.new("UIListLayout")
-ListLayout.Padding = UDim.new(0, 4)
-ListLayout.Parent = ConfigList
-
-local function RefreshConfigList()
-	for _, child in ipairs(ConfigList:GetChildren()) do
-		if child:IsA("TextButton") then child:Destroy() end
-	end
-	pcall(function()
-		if isfolder and isfolder(ConfigsFolder) then
-			for _, file in ipairs(listfiles(ConfigsFolder)) do
-				local name = file:match("([^/\\]+)%.json$")
-				if name then SavedConfigs[name] = SavedConfigs[name] or true end
-			end
-		end
-	end)
-	local count = 0
-	for name, _ in pairs(SavedConfigs) do
-		count += 1
-		local btn = Instance.new("TextButton")
-		btn.Size = UDim2.new(1, -8, 0, 28)
-		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-		btn.Text = name
-		btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		btn.Font = Enum.Font.Gotham
-		btn.TextSize = 13
-		btn.Parent = ConfigList
-		local c = Instance.new("UICorner")
-		c.CornerRadius = UDim.new(0, 4)
-		c.Parent = btn
-		btn.MouseButton1Click:Connect(function()
-			LoadConfig(name)
-		end)
-	end
-	ConfigList.CanvasSize = UDim2.new(0, 0, 0, count * 32)
-end
-
-local function SaveConfig()
-	local name = ConfigNameBox.Text
-	if name == "" then return end
-	SavedConfigs[name] = {
-		AimAssist = Config.AimAssist,
-		ESP = Config.ESP,
-		Noclip = Config.Noclip,
-		WalkSpeed = Config.WalkSpeed,
-		FOV = Config.FOV
-	}
-	pcall(function()
-		if makefolder and not isfolder(ConfigsFolder) then makefolder(ConfigsFolder) end
-		if writefile then
-			writefile(ConfigsFolder .. "/" .. name .. ".json", HttpService:JSONEncode(SavedConfigs[name]))
-		end
-	end)
-	RefreshConfigList()
-end
-
-function LoadConfig(name)
-	local data = type(SavedConfigs[name]) == "table" and SavedConfigs[name] or nil
-	if not data then
-		pcall(function()
-			if readfile then
-				data = HttpService:JSONDecode(readfile(ConfigsFolder .. "/" .. name .. ".json"))
-				SavedConfigs[name] = data
-			end
-		end)
-	end
-	if data then
-		Config.AimAssist = data.AimAssist or false
-		Config.ESP = data.ESP or false
-		Config.Noclip = data.Noclip or false
-		Config.WalkSpeed = data.WalkSpeed or 16
-		Config.FOV = data.FOV or 120
-		FOVLabel.Text = "FOV: " .. Config.FOV
-		SpeedLabel.Text = "WalkSpeed: " .. Config.WalkSpeed
-		if FOVCircle then FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2) end
-		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
-			LocalPlayer.Character.Humanoid.WalkSpeed = Config.WalkSpeed
-		end
-	end
-end
-
-local function DeleteConfig(name)
-	SavedConfigs[name] = nil
-	pcall(function()
-		if delfile then delfile(ConfigsFolder .. "/" .. name .. ".json") end
-	end)
-	RefreshConfigList()
-end
-
-CreateButton("Crear Config", 80, SaveConfig, ConfigFrame)
-CreateButton("Borrar Config", 290, function()
-	local name = ConfigNameBox.Text
-	if name ~= "" then DeleteConfig(name) end
-end, ConfigFrame)
+CreateButton("FOV +", 772, function() ChangeFOV(20) end)
+CreateButton("FOV -", 807, function() ChangeFOV(-20) end)
 
 HubButton.MouseButton1Click:Connect(function()
 	Menu.Visible = not Menu.Visible
-	if not Menu.Visible then ConfigFrame.Visible = false end
 end)
 
 FOVCircle = Instance.new("Frame")
@@ -404,17 +290,13 @@ FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
 FOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 FOVCircle.Position = UDim2.fromScale(0.5, 0.5)
 FOVCircle.BackgroundTransparency = 1
-FOVCircle.Visible = true
+FOVCircle.Visible = Config.ShowFOV
 FOVCircle.Parent = Gui
 
-local CircleStroke = Instance.new("UIStroke")
+local CircleStroke = Instance.new("UIStroke", FOVCircle)
 CircleStroke.Thickness = 1.5
 CircleStroke.Color = Color3.fromRGB(0, 255, 120)
-CircleStroke.Parent = FOVCircle
-
-local CircleCorner = Instance.new("UICorner")
-CircleCorner.CornerRadius = UDim.new(1, 0)
-CircleCorner.Parent = FOVCircle
+Instance.new("UICorner", FOVCircle).CornerRadius = UDim.new(1, 0)
 
 local Watermark = Instance.new("Frame")
 Watermark.Size = UDim2.new(0, 260, 0, 28)
@@ -422,15 +304,10 @@ Watermark.Position = UDim2.new(1, -275, 0, 12)
 Watermark.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 Watermark.BackgroundTransparency = 0.3
 Watermark.Parent = Gui
-
-local WMCorner = Instance.new("UICorner")
-WMCorner.CornerRadius = UDim.new(0, 6)
-WMCorner.Parent = Watermark
-
-local WMStroke = Instance.new("UIStroke")
+Instance.new("UICorner", Watermark).CornerRadius = UDim.new(0, 6)
+local WMStroke = Instance.new("UIStroke", Watermark)
 WMStroke.Color = Color3.fromRGB(0, 200, 100)
 WMStroke.Thickness = 1
-WMStroke.Parent = Watermark
 
 local WMText = Instance.new("TextLabel")
 WMText.Size = UDim2.new(1, -8, 1, 0)
@@ -476,7 +353,7 @@ local function GetClosestEnemy()
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if IsEnemy(plr) and plr.Character then
 			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-			local part = plr.Character:FindFirstChild("UpperTorso") or plr.Character:FindFirstChild("Torso") or plr.Character:FindFirstChild("HumanoidRootPart")
+			local part = plr.Character:FindFirstChild(Config.TargetPart) or plr.Character:FindFirstChild("UpperTorso") or plr.Character:FindFirstChild("HumanoidRootPart")
 			if hum and hum.Health > 0 and part then
 				local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
 				if onScreen and IsVisible(part) then
@@ -493,29 +370,72 @@ local function GetClosestEnemy()
 end
 
 local function ClearESP()
-	for _, v in pairs(ESPObjects) do
-		if v and v.Parent then v:Destroy() end
+	for _, v in ipairs(ESPFolder:GetChildren()) do
+		v:Destroy()
 	end
-	table.clear(ESPObjects)
+end
+
+local function CreateESP(player)
+	if not player.Character then return end
+	local char = player.Character
+	local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not root or not hum then return end
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = player.Name
+	billboard.Adornee = root
+	billboard.Size = UDim2.new(0, 200, 0, 50)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = ESPFolder
+
+	if Config.Names or Config.Health or Config.Distance then
+		local text = Instance.new("TextLabel")
+		text.Size = UDim2.new(1, 0, 1, 0)
+		text.BackgroundTransparency = 1
+		text.TextColor3 = Color3.fromRGB(255, 80, 80)
+		text.Font = Enum.Font.GothamBold
+		text.TextSize = 13
+		text.TextStrokeTransparency = 0.4
+		text.Parent = billboard
+
+		local function update()
+			if not char or not hum or hum.Health <= 0 then
+				billboard:Destroy()
+				return
+			end
+			local parts = {}
+			if Config.Names then table.insert(parts, player.Name) end
+			if Config.Health then table.insert(parts, math.floor(hum.Health) .. " HP") end
+			if Config.Distance and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+				local d = (root.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+				table.insert(parts, math.floor(d) .. "m")
+			end
+			text.Text = table.concat(parts, " | ")
+		end
+		update()
+		hum.HealthChanged:Connect(update)
+	end
+
+	if Config.Boxes then
+		local highlight = Instance.new("Highlight")
+		highlight.Adornee = char
+		highlight.FillColor = Color3.fromRGB(255, 50, 50)
+		highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		highlight.FillTransparency = 0.6
+		highlight.OutlineTransparency = 0
+		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		highlight.Parent = ESPFolder
+	end
 end
 
 local function UpdateESP()
 	ClearESP()
 	if not Config.ESP then return end
 	for _, plr in ipairs(Players:GetPlayers()) do
-		if IsEnemy(plr) and plr.Character then
-			local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-			if hum and hum.Health > 0 then
-				local highlight = Instance.new("Highlight")
-				highlight.Adornee = plr.Character
-				highlight.FillColor = Color3.fromRGB(255, 50, 50)
-				highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-				highlight.FillTransparency = 0.5
-				highlight.OutlineTransparency = 0
-				highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-				highlight.Parent = plr.Character
-				table.insert(ESPObjects, highlight)
-			end
+		if IsEnemy(plr) then
+			CreateESP(plr)
 		end
 	end
 end
@@ -530,17 +450,56 @@ RunService.Stepped:Connect(function()
 	end
 end)
 
+UserInputService.JumpRequest:Connect(function()
+	if Config.InfiniteJump and LocalPlayer.Character then
+		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+		if hum then
+			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+
+if Config.AntiAFK then
+	LocalPlayer.Idled:Connect(function()
+		VirtualUser:CaptureController()
+		VirtualUser:ClickButton2(Vector2.new())
+	end)
+end
+
 RunService.RenderStepped:Connect(function()
 	if LocalPlayer.Character then
 		local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-		if hum then hum.WalkSpeed = Config.WalkSpeed end
+		if hum then
+			hum.WalkSpeed = Config.WalkSpeed
+		end
 	end
+
+	if FOVCircle then
+		FOVCircle.Visible = Config.ShowFOV
+		FOVCircle.Size = UDim2.fromOffset(Config.FOV * 2, Config.FOV * 2)
+	end
+
+	if Config.AntiRecoil and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then
+		Camera.CFrame = Camera.CFrame * CFrame.Angles(math.rad(-Config.AntiRecoilStrength), 0, 0)
+	end
+
 	if Config.AimAssist then
 		local target = GetClosestEnemy()
 		if target then
 			local current = Camera.CFrame
 			local goal = CFrame.lookAt(current.Position, target.Position)
-			Camera.CFrame = current:Lerp(goal, Config.Smoothness)
+			if Config.Smooth then
+				Camera.CFrame = current:Lerp(goal, Config.Smoothness)
+			else
+				Camera.CFrame = goal
+			end
+
+			if Config.Triggerbot and (tick() - lastClick) >= CLICK_COOLDOWN then
+				if mouse1click then
+					mouse1click()
+					lastClick = tick()
+				end
+			end
 		end
 	end
 end)
@@ -548,14 +507,14 @@ end)
 task.spawn(function()
 	while true do
 		UpdateESP()
-		task.wait(0.5)
+		task.wait(0.6)
 	end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function(char)
-	task.wait(0.3)
+	task.wait(0.4)
 	local hum = char:WaitForChild("Humanoid", 5)
 	if hum then hum.WalkSpeed = Config.WalkSpeed end
 end)
 
-RefreshConfigList()
+print("Arsenal Build cargado")
