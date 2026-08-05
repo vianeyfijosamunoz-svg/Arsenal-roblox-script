@@ -1,5 +1,3 @@
-getgenv().RAYFIELD_SECURE = true
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -10,6 +8,7 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local VIM = game:GetService("VirtualInputManager")
+local TextService = game:GetService("TextService")
 
 local Config = {
 	AimAssist = false,
@@ -30,8 +29,7 @@ local Config = {
 	AntiAimSpeed = 80,
 	BubbleShots = true,
 	Ragebot = false,
-	RapidFire = false,
-	SilentAim = false
+	RapidFire = false
 }
 
 local HiddenFolder = Instance.new("Folder")
@@ -57,12 +55,145 @@ local function SafeCall(fn, ...)
 	return s and r or nil
 end
 
+local function CreateKeySystem()
+	local sg = Instance.new("ScreenGui")
+	sg.Name = tostring(math.random(10000,99999))
+	sg.IgnoreGuiInset = true
+	sg.ResetOnSpawn = false
+	sg.Parent = CoreGui
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1,0,1,0)
+	bg.BackgroundColor3 = Color3.fromRGB(10,10,10)
+	bg.BorderSizePixel = 0
+	bg.Parent = sg
+
+	local mainBox = Instance.new("Frame")
+	mainBox.Size = UDim2.new(0, 420, 0, 230)
+	mainBox.AnchorPoint = Vector2.new(0.5, 0.5)
+	mainBox.Position = UDim2.new(0.5, 0, 0.5, 0)
+	mainBox.BackgroundColor3 = Color3.fromRGB(20,20,20)
+	mainBox.BorderSizePixel = 0
+	mainBox.Parent = bg
+	Instance.new("UICorner", mainBox).CornerRadius = UDim.new(0, 8)
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(0, 255, 100)
+	stroke.Thickness = 2
+	stroke.Parent = mainBox
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 40)
+	title.Position = UDim2.new(0, 0, 0, 15)
+	title.BackgroundTransparency = 1
+	title.Text = "GG HUB - KEY SYSTEM"
+	title.TextColor3 = Color3.fromRGB(0, 255, 100)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 20
+	title.Parent = mainBox
+
+	local subtitle = Instance.new("TextLabel")
+	subtitle.Size = UDim2.new(1, -40, 0, 30)
+	subtitle.Position = UDim2.new(0, 20, 0, 55)
+	subtitle.BackgroundTransparency = 1
+	subtitle.Text = "Introduce tu clave para continuar"
+	subtitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+	subtitle.Font = Enum.Font.Gotham
+	subtitle.TextSize = 13
+	subtitle.Parent = mainBox
+
+	local textBox = Instance.new("TextBox")
+	textBox.Size = UDim2.new(0, 380, 0, 40)
+	textBox.Position = UDim2.new(0.5, -190, 0, 95)
+	textBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textBox.PlaceholderText = "Escribe tu clave aquí..."
+	textBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 100)
+	textBox.Font = Enum.Font.Gotham
+	textBox.TextSize = 14
+	textBox.Text = ""
+	textBox.ClearTextOnFocus = false
+	textBox.Parent = mainBox
+	Instance.new("UICorner", textBox).CornerRadius = UDim.new(0, 6)
+
+	-- Botón Verify Key (Mitad izquierda)
+	local btnVerify = Instance.new("TextButton")
+	btnVerify.Size = UDim2.new(0, 182, 0, 38)
+	btnVerify.Position = UDim2.new(0.5, -190, 0, 148)
+	btnVerify.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+	btnVerify.TextColor3 = Color3.fromRGB(15, 15, 15)
+	btnVerify.Text = "VERIFY KEY"
+	btnVerify.Font = Enum.Font.GothamBold
+	btnVerify.TextSize = 14
+	btnVerify.Parent = mainBox
+	Instance.new("UICorner", btnVerify).CornerRadius = UDim.new(0, 6)
+
+	-- Botón Get Key (Mitad derecha)
+	local btnGet = Instance.new("TextButton")
+	btnGet.Size = UDim2.new(0, 182, 0, 38)
+	btnGet.Position = UDim2.new(0.5, 8, 0, 148)
+	btnGet.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+	btnGet.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btnGet.Text = "GET KEY"
+	btnGet.Font = Enum.Font.GothamBold
+	btnGet.TextSize = 14
+	btnGet.Parent = mainBox
+	Instance.new("UICorner", btnGet).CornerRadius = UDim.new(0, 6)
+
+	local validKey = "OQEHQHWOORGQJWROPAPWI2H3011YFBQPPQWBQBWBEVQJWLIFHQKEFÑIQGWVWBDLQOWHVEÑQPWBE"
+	local verified = false
+	local isChecking = false
+
+	btnVerify.MouseButton1Click:Connect(function()
+		if isChecking then return end
+		isChecking = true
+		
+		btnVerify.Text = "Verificando Key..."
+		btnVerify.BackgroundColor3 = Color3.fromRGB(200, 160, 0)
+		
+		task.wait(1.2)
+		
+		if textBox.Text == validKey then
+			btnVerify.Text = "Key Correcta!"
+			btnVerify.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+			task.wait(0.8)
+			verified = true
+			sg:Destroy()
+		else
+			btnVerify.Text = "Key Incorrecta!"
+			btnVerify.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+			textBox.Text = ""
+			
+			task.wait(1.2)
+			btnVerify.Text = "VERIFY KEY"
+			btnVerify.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+			isChecking = false
+		end
+	end)
+
+	btnGet.MouseButton1Click:Connect(function()
+		pcall(function()
+			setclipboard("discord.gg/tvYWHS2B8")
+		end)
+		btnGet.Text = "¡COPIADO!"
+		task.delay(1.5, function()
+			if btnGet and btnGet.Parent then
+				btnGet.Text = "GET KEY"
+			end
+		end)
+	end)
+
+	repeat task.wait() until verified
+end
+
+CreateKeySystem()
+
 local function CreateLoadingScreen()
 	local sg = Instance.new("ScreenGui")
 	sg.Name = tostring(math.random(10000,99999))
 	sg.IgnoreGuiInset = true
 	sg.ResetOnSpawn = false
-	sg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	sg.Parent = CoreGui
 
 	local bg = Instance.new("Frame")
 	bg.Size = UDim2.new(1,0,1,0)
@@ -143,8 +274,8 @@ CreateLoadingScreen()
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-	Name = "GG HUB | BRUTAL",
-	LoadingTitle = "GG HUB BRUTAL",
+	Name = "GG HUB ARSENAL VERSION",
+	LoadingTitle = "GG HUB",
 	LoadingSubtitle = ".gg/tvYWHS2B8",
 	ConfigurationSaving = {
 		Enabled = true,
@@ -169,13 +300,6 @@ AimTab:CreateToggle({
 	CurrentValue = false,
 	Flag = "AimAssist",
 	Callback = function(v) Config.AimAssist = v end
-})
-
-AimTab:CreateToggle({
-	Name = "Silent Aim",
-	CurrentValue = false,
-	Flag = "SilentAim",
-	Callback = function(v) Config.SilentAim = v end
 })
 
 AimTab:CreateDropdown({
@@ -757,7 +881,7 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 			end
 		end
 
-		if Config.AimAssist or Config.SilentAim then
+		if Config.AimAssist then
 			local target
 			if Config.Ragebot then
 				if CurrentTarget and CurrentTarget.Parent then
@@ -766,18 +890,14 @@ table.insert(Connections, RunService.RenderStepped:Connect(function()
 					target = GetClosestEnemy(true)
 				end
 			else
-				target = GetClosestEnemy(Config.SilentAim)
+				target = GetClosestEnemy(false)
 			end
 
 			if target then
-				if Config.SilentAim then
+				if Config.Ragebot then
 					Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-				elseif Config.AimAssist then
-					if Config.Ragebot then
-						Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, target.Position)
-					else
-						Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, target.Position), 0.92)
-					end
+				else
+					Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, target.Position), 0.92)
 				end
 			end
 		end
@@ -801,3 +921,4 @@ end))
 
 ApplyBubbleShots(true)
 Rayfield:LoadConfiguration()
+
